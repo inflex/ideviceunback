@@ -54,6 +54,7 @@
 #define PATH_MAX 4096
 
 struct globals {
+	int decode_only;
 	int verbose;
 	int debug;
 	char *inputpath;
@@ -84,11 +85,12 @@ struct manrec {
 };
 
 char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-h]\n\
-	-i <input path> : Folder containing the Manifest.mbdb and other files from idevicebackup (default ./ )\n\
-	-o <output path> : Where to copy the sorted files to (default: _unback_ )\n\
-	-v : Verbose, use multiple times to increase verbosity\n\
-	-h : This help.\n\
-";
+			 -i <input path> : Folder containing the Manifest.mbdb and other files from idevicebackup (default ./ )\n\
+			 -o <output path> : Where to copy the sorted files to (default: _unback_ )\n\
+			 -v : Verbose, use multiple times to increase verbosity\n\
+			 -m : Decode the manifest only, don't copy the files\n\
+			 -h : This help.\n\
+			 ";
 
 
 int filecopy( char *source, char *dest )
@@ -289,12 +291,12 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
 				case 'h': fprintf(stdout,"%s", help); exit(0); break;
-				case 'v': (g->verbose)++; fprintf(stderr,"v=%d\n",g->verbose); break;
+				case 'v': (g->verbose)++; break;
 				case 'd': (g->debug)++; break;
+				case 'm': (g->decode_only)++; break;
 				case 'i':
 						  if ((i < argc -1) && (argv[i+1][0] != '-')){
 							  i++;
-							  fprintf(stderr," setting input\n");
 							  g->inputpath = strdup(argv[i]);
 						  }
 						  break;
@@ -302,7 +304,6 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 						  if ((i < argc -1) && (argv[i+1][0] != '-')){
 							  i++;
 							  g->outputpath = strdup(argv[i]);
-							  fprintf(stderr," setting output %s\n", g->outputpath);
 						  }
 						  break;
 				default:
@@ -330,6 +331,7 @@ int main( int argc, char **argv ) {
 
 	g.debug = 0;
 	g.verbose = 0;
+	g.decode_only = 0;
 	g.inputpath = inputpath_default;
 	g.outputpath = outputpath_default;
 
@@ -453,12 +455,14 @@ int main( int argc, char **argv ) {
 				if (g.verbose) fprintf(stdout,"\n");
 				fprintf(stdout,"%s =(exists)=> %s", g.hashfn, m.filepath);
 				snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
-				fn = splitpath(newpath);
-				if (fn) {
-					mkdirp( newpath, S_IRWXU );
-					*(fn -1) = '/';
-					filecopy( g.hashfn, newpath);
-					fprintf(stdout, " copied");
+				if (g.decode_only == 0) {
+					fn = splitpath(newpath);
+					if (fn) {
+						mkdirp( newpath, S_IRWXU );
+						*(fn -1) = '/';
+						filecopy( g.hashfn, newpath);
+						fprintf(stdout, " copied");
+					}
 				}
 				fprintf(stdout,"\n");
 			} else {
