@@ -17,3 +17,6 @@ default: ideviceunback
 
 clean:
 	rm ideviceunback *.o
+
+install: ideviceunback
+	cp ideviceunback /usr/local/bin

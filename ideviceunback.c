@@ -86,14 +86,15 @@ struct manrec {
 	uint8_t numprops;
 };
 
-char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h]\n\
+char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h] [-V]\n\
 			 -i <input path> : Folder containing the Manifest.mbdb and other files from idevicebackup (default ./ )\n\
 			 -o <output path> : Where to copy the sorted files to (default: _unback_ )\n\
 			 -v : Verbose, use multiple times to increase verbosity\n\
 			 -q : Quiet mode\n\
 			 -m : Decode the manifest only, don't copy the files\n\
 			 -h : This help.\n\
-			 ";
+			 -V : Version\n\
+";
 
 
 int filecopy( char *source, char *dest )
@@ -300,6 +301,7 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
 				case 'h': fprintf(stdout,"%s", help); exit(0); break;
+				case 'V': fprintf(stdout,"%s\n",  VERSION); exit(0); break;
 				case 'v': (g->verbose)++; break;
 				case 'q': (g->quiet)++; break;
 				case 'd': (g->debug)++; break;
