@@ -10,7 +10,7 @@ all: ideviceunback
 .c.o:
 	$(CC) $(CFLAGS) -c $*.c
 
-ideviceunback: $(OBJS)
+ideviceunback: $(OBJS) ideviceunback.c
 	gcc $(CFLAGS) ideviceunback.c $(OBJS) -o ideviceunback 
 
 default: ideviceunback

@@ -485,14 +485,14 @@ int main( int argc, char **argv ) {
 						if (!g.quiet) fprintf(stdout, " copied");
 					}
 				}
-				fprintf(stdout,"\n");
+				if (!g.quiet) fprintf(stdout,"\n");
 			} else {
 				if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, m.filepath);
 			}
 		} else if ((m.mode & 0xE000) == 0x4000) {
-			fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
+			if (!g.quiet) fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
 		} else if ((m.mode & 0xE000) == 0xA000) {
-			fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
+			if (!g.quiet) fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
 		}
 	}
 
