@@ -43,20 +43,22 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdint.h>
-#include <ctype.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <arpa/inet.h>
-#include <openssl/sha.h>
+#include "sha1.h"
 
 #define VERSION "1.01"
 #define TOOLS_BLOCK_READ_BUFFER_SIZE 4096
 #define PATH_MAX 4096
 
+char outputpath_default[]="_unback_";
+char inputpath_default[]="";
+
 struct globals {
 	int decode_only;
 	int verbose;
 	int debug;
+	int quiet;
 	char *inputpath;
 	char *outputpath;
 	char manifest_filename[PATH_MAX];
@@ -64,7 +66,7 @@ struct globals {
 };
 
 struct manrec {
-	unsigned char hash[SHA_DIGEST_LENGTH];
+	unsigned char hash[SHA1_BLOCK_SIZE];
 	char hashstr[1024];
 	char domain[1024];
 	char filepath[1024];
@@ -84,10 +86,11 @@ struct manrec {
 	uint8_t numprops;
 };
 
-char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-h]\n\
+char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h]\n\
 			 -i <input path> : Folder containing the Manifest.mbdb and other files from idevicebackup (default ./ )\n\
 			 -o <output path> : Where to copy the sorted files to (default: _unback_ )\n\
 			 -v : Verbose, use multiple times to increase verbosity\n\
+			 -q : Quiet mode\n\
 			 -m : Decode the manifest only, don't copy the files\n\
 			 -h : This help.\n\
 			 ";
@@ -298,6 +301,7 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 			switch (argv[i][1]) {
 				case 'h': fprintf(stdout,"%s", help); exit(0); break;
 				case 'v': (g->verbose)++; break;
+				case 'q': (g->quiet)++; break;
 				case 'd': (g->debug)++; break;
 				case 'm': (g->decode_only)++; break;
 				case 'i':
@@ -321,13 +325,12 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 	return 0;
 }
 
-char outputpath_default[]="_unback_";
-char inputpath_default[]="";
 
 int main( int argc, char **argv ) {
 
 	struct globals g;
 	struct manrec m;
+	SHA1_CTX ctx;
 
 	int i;
 	char *addr, *p, *ep;
@@ -336,11 +339,14 @@ int main( int argc, char **argv ) {
 
 	g.debug = 0;
 	g.verbose = 0;
+	g.quiet = 0;
 	g.decode_only = 0;
 	g.inputpath = inputpath_default;
 	g.outputpath = outputpath_default;
 
 	parse_parameters( &g, argc, argv );
+
+	if (g.quiet)  { g.verbose = 0; g.debug = 0; }
 
 	if (g.verbose) {
 		fprintf(stdout,"Source: %s\nDest: %s\n", g.inputpath, g.outputpath);
@@ -373,6 +379,9 @@ int main( int argc, char **argv ) {
 		exit(1);
 	}
 
+	/*
+	 * Verify the Manifest file
+	 */
 	p = addr;
 	ep = addr +sb.st_size;
 	if (memcmp(p, "mbdb", 4)) {
@@ -398,7 +407,6 @@ int main( int argc, char **argv ) {
 					, m.enckey
 				   );
 		}
-
 
 		readuint16(&p, &m.mode); // mode
 		readuint64(&p, &m.inode); // inode#
@@ -444,45 +452,49 @@ int main( int argc, char **argv ) {
 
 		if (g.verbose) fprintf(stdout,"\n");
 
-
+		/*
+		 * Compute the SHA1 hash for the manifest item
+		 */
 		snprintf(m.shain, sizeof(m.shain),"%s-%s", m.domain, m.filepath);
-		SHA1((unsigned char*)m.shain, strlen(m.shain), m.hash);
+		sha1_init(&ctx);
+		sha1_update(&ctx, (uint8_t *)m.shain, strlen(m.shain));
+		sha1_final(&ctx, m.hash);
 
-		for (i=0; i < SHA_DIGEST_LENGTH; i++) {
+		for (i=0; i < SHA1_BLOCK_SIZE; i++) {
 			sprintf(m.hashstr+(i*2),"%02hhx",m.hash[i]);
 		}
 
-		{
-			if ((m.mode & 0xE000)==0x8000) {
-				snprintf(g.hashfn, sizeof(g.hashfn), "%s/%s", g.inputpath, m.hashstr);
-				if( access( g.hashfn, F_OK ) != -1 ) {
-					char newpath[PATH_MAX];
-					char *fn;
-					if (g.verbose) fprintf(stdout,"\n");
-					fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, m.filepath);
-					snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
-					if (g.decode_only == 0) {
-						fn = splitpath(newpath);
-						if (fn) {
-							mkdirp( newpath, S_IRWXU );
-							*(fn -1) = '/';
-							filecopy( g.hashfn, newpath);
-							fprintf(stdout, " copied");
-						}
+		/*
+		 * Final interpretation of the decoded manifest item and 
+		 * deciding what to do with it.
+		 */
+		if ((m.mode & 0xE000)==0x8000) {
+			snprintf(g.hashfn, sizeof(g.hashfn), "%s/%s", g.inputpath, m.hashstr);
+			if( access( g.hashfn, F_OK ) != -1 ) {
+				char newpath[PATH_MAX];
+				char *fn;
+				if (g.verbose) fprintf(stdout,"\n");
+				if (!g.quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, m.filepath);
+				snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
+				if (g.decode_only == 0) {
+					fn = splitpath(newpath);
+					if (fn) {
+						mkdirp( newpath, S_IRWXU );
+						*(fn -1) = '/';
+						filecopy( g.hashfn, newpath);
+						if (!g.quiet) fprintf(stdout, " copied");
 					}
-					fprintf(stdout,"\n");
-				} else {
-					if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, m.filepath);
 				}
-			} else if ((m.mode & 0xE000) == 0x4000) {
-				fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
-			} else if ((m.mode & 0xE000) == 0xA000) {
-				fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
+				fprintf(stdout,"\n");
+			} else {
+				if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, m.filepath);
 			}
+		} else if ((m.mode & 0xE000) == 0x4000) {
+			fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
+		} else if ((m.mode & 0xE000) == 0xA000) {
+			fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
 		}
 	}
-
-
 
 	munmap(addr, sb.st_size);
 	close(fd);
