@@ -206,31 +206,37 @@ char *splitpath( char *fullpath ) {
 }
 
 int readstr( char **p, char *buf ) {
-	static unsigned short mask[] = {192, 224, 240};
+	static unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
 	uint8_t i;
 	uint8_t slr[2];
 	uint16_t sl;
+	char *bp = *p;
+	char *bep;
 
-	slr[0] = **p;
-	slr[1] = *((*p)+1);
+	slr[0] = *bp;
+	slr[1] = *(bp+1);
 	if ((slr[0] == 0xff)&&(slr[1] == 0xff)) {
-		(*p)+=2;
+		bp+=2;
+		*p = bp;
 		*buf = '\0';
 		return 0;
 	}
 	sl = (slr[0] << 8) + slr[1];
-	(*p)+=2;
+	bp+=2;
+	bep = bp +sl;
 
-	while ((**p != '\0')&&(sl--)) {
+	while ((*bp != '\0')&&(sl--)) {
 		i = 0;
-		if ((**p & mask[0]) == mask[0]) i++;
-		if ((**p & mask[1]) == mask[1]) i++;
-		if ((**p & mask[2]) == mask[2]) i++;
+		if ((*bp & mask[0]) == mask[0]) i++;
+		if ((*bp & mask[1]) == mask[1]) i++;
+		if ((*bp & mask[2]) == mask[2]) i++;
 
-		*buf = **p; buf++; 
-		(*p)+=(i+1);
+		*buf = *bp; 
+		buf++; 
+		bp+=(i+1);
 	}
 	*buf = '\0';
+	*p = bep;
 	return 0;
 }
 
@@ -284,8 +290,8 @@ int readuint64( char **p, uint64_t *i ) {
 
 
 int parse_parameters( struct globals *g, int argc, char **argv ) {
-	int i;
 
+	int i;
 
 	for (i = 0; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -312,7 +318,6 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 			}
 		}
 	}
-	fprintf(stderr,"done\n");
 	return 0;
 }
 
@@ -448,25 +453,31 @@ int main( int argc, char **argv ) {
 		}
 
 		{
-			snprintf(g.hashfn, sizeof(g.hashfn), "%s/%s", g.inputpath, m.hashstr);
-			if( access( g.hashfn, F_OK ) != -1 ) {
-				char newpath[PATH_MAX];
-				char *fn;
-				if (g.verbose) fprintf(stdout,"\n");
-				fprintf(stdout,"%s =(exists)=> %s", g.hashfn, m.filepath);
-				snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
-				if (g.decode_only == 0) {
-					fn = splitpath(newpath);
-					if (fn) {
-						mkdirp( newpath, S_IRWXU );
-						*(fn -1) = '/';
-						filecopy( g.hashfn, newpath);
-						fprintf(stdout, " copied");
+			if ((m.mode & 0xE000)==0x8000) {
+				snprintf(g.hashfn, sizeof(g.hashfn), "%s/%s", g.inputpath, m.hashstr);
+				if( access( g.hashfn, F_OK ) != -1 ) {
+					char newpath[PATH_MAX];
+					char *fn;
+					if (g.verbose) fprintf(stdout,"\n");
+					fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, m.filepath);
+					snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
+					if (g.decode_only == 0) {
+						fn = splitpath(newpath);
+						if (fn) {
+							mkdirp( newpath, S_IRWXU );
+							*(fn -1) = '/';
+							filecopy( g.hashfn, newpath);
+							fprintf(stdout, " copied");
+						}
 					}
+					fprintf(stdout,"\n");
+				} else {
+					if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, m.filepath);
 				}
-				fprintf(stdout,"\n");
-			} else {
-				if (g.verbose) fprintf(stdout, "Not present\n");
+			} else if ((m.mode & 0xE000) == 0x4000) {
+				fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
+			} else if ((m.mode & 0xE000) == 0xA000) {
+				fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
 			}
 		}
 	}
