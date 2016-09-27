@@ -47,12 +47,9 @@
 #include <sys/stat.h>
 #include "sha1.h"
 
-#define VERSION "1.01"
+#define VERSION "1.02"
 #define TOOLS_BLOCK_READ_BUFFER_SIZE 4096
 #define PATH_MAX 4096
-
-char outputpath_default[]="_unback_";
-char inputpath_default[]="";
 
 struct globals {
 	int decode_only;
@@ -87,13 +84,13 @@ struct manrec {
 };
 
 char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h] [-V]\n\
-			 -i <input path> : Folder containing the Manifest.mbdb and other files from idevicebackup (default ./ )\n\
-			 -o <output path> : Where to copy the sorted files to (default: _unback_ )\n\
-			 -v : Verbose, use multiple times to increase verbosity\n\
-			 -q : Quiet mode\n\
-			 -m : Decode the manifest only, don't copy the files\n\
-			 -h : This help.\n\
-			 -V : Version\n\
+  -i <input path> : Folder containing the Manifest.mbdb\n\
+  -o <output path> : Where to copy the sorted files to\n\
+  -v : Verbose, use multiple times to increase verbosity\n\
+  -q : Quiet mode\n\
+  -m : Decode the manifest only, don't copy the files\n\
+  -h : This help.\n\
+  -V : Version\n\
 ";
 
 
@@ -339,16 +336,31 @@ int main( int argc, char **argv ) {
 	int fd;
 	struct stat sb;
 
+	if (argc < 4) {
+		fprintf(stderr,"%s\n",help);
+		exit(1);
+	}
+
 	g.debug = 0;
 	g.verbose = 0;
 	g.quiet = 0;
 	g.decode_only = 0;
-	g.inputpath = inputpath_default;
-	g.outputpath = outputpath_default;
+	g.inputpath = NULL;
+	g.outputpath = NULL;
 
 	parse_parameters( &g, argc, argv );
 
 	if (g.quiet)  { g.verbose = 0; g.debug = 0; }
+
+	if (!g.inputpath) {
+		fprintf(stderr,"No input path specified.\n%s\n", help);
+		exit(1);
+	}
+
+	if (!g.outputpath) {
+		fprintf(stderr,"No output path specified.\n%s\n", help);
+		exit(1);
+	}
 
 	if (g.verbose) {
 		fprintf(stdout,"Source: %s\nDest: %s\n", g.inputpath, g.outputpath);
