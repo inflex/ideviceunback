@@ -2,38 +2,20 @@
 /*
  * MIT licence
  *
- Copyright (c) 2016, Paul L Daniels
- All rights reserved.
+ *
+ Copyright (c) 2016 Paul L Daniels
 
- Redistribution and use in source and binary forms, with or  
- without modification, are permitted provided that the 
- following conditions are met:
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation 
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the Software 
+ is furnished to do so, subject to the following conditions:
 
- * Redistributions of source code must retain the above 
- copyright notice, this list of conditions and the following 
- disclaimer.
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
 
- * Redistributions in binary form must reproduce the above 
- copyright notice, this list of conditions and the following 
- disclaimer in the documentation and/or other materials provided 
- with the distribution.
-
- * Neither the name of the Paul L Daniels nor the names of its contributors 
- may be used to endorse or promote products derived from this software 
- without specific prior written permission.
-
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
- LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
- FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE 
- COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN  
- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
- POSSIBILITY OF SUCH DAMAGE.
+ *
  */ 
 
 #include <stdio.h>
@@ -47,7 +29,7 @@
 #include <sys/stat.h>
 #include "sha1.h"
 
-#define VERSION "1.02"
+#define VERSION "1.03"
 #define TOOLS_BLOCK_READ_BUFFER_SIZE 4096
 #define PATH_MAX 4096
 
@@ -84,19 +66,36 @@ struct manrec {
 };
 
 char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h] [-V]\n\
-  -i <input path> : Folder containing the Manifest.mbdb\n\
-  -o <output path> : Where to copy the sorted files to\n\
-  -v : Verbose, use multiple times to increase verbosity\n\
-  -q : Quiet mode\n\
-  -m : Decode the manifest only, don't copy the files\n\
-  -h : This help.\n\
-  -V : Version\n\
-";
+			 -i <input path> : Folder containing the Manifest.mbdb\n\
+			 -o <output path> : Where to copy the sorted files to\n\
+			 -v : Verbose, use multiple times to increase verbosity\n\
+			 -q : Quiet mode\n\
+			 -m : Decode the manifest only, don't copy the files\n\
+			 -h : This help.\n\
+			 -V : Version\n\
+			 ";
 
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010850
+  Function Name	: filecopy
+  Returns Type	: int
+  ----Parameter List
+  1. char *source, 
+  2.  char *dest , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int filecopy( char *source, char *dest )
 {
-	char *buffer;
+	static char buffer[4096]; 
 	FILE *s, *d;
 	size_t rsize, wsize;
 
@@ -114,13 +113,6 @@ int filecopy( char *source, char *dest )
 		return -1;
 	}
 
-	buffer = malloc( TOOLS_BLOCK_READ_BUFFER_SIZE );
-	if (!buffer)
-	{
-		fprintf(stderr,"ERROR: Cannot allocate %d bytes for buffer", TOOLS_BLOCK_READ_BUFFER_SIZE );
-		return -1;
-	}
-
 	do {
 		rsize = fread( buffer, 1, TOOLS_BLOCK_READ_BUFFER_SIZE, s );
 		if (rsize > 0)
@@ -128,7 +120,7 @@ int filecopy( char *source, char *dest )
 			wsize = fwrite( buffer, 1, rsize, d );
 			if ( rsize != wsize )
 			{
-				fprintf(stderr,"WARNING: Read '%lu' bytes, but only coule write '%lu'", rsize, wsize );
+				fprintf(stderr,"WARNING: Read '%lu' bytes, but only could write '%lu'", rsize, wsize );
 			}
 		}
 	} while ( rsize > 0 );
@@ -136,13 +128,28 @@ int filecopy( char *source, char *dest )
 	fclose(s);
 	fclose(d);
 
-	free(buffer);
-
 	return 0;
 }
 
 
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010845
+  Function Name	: mkdirp
+  Returns Type	: int
+  ----Parameter List
+  1. char *path, 
+  2.  int mode , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int mkdirp( char *path, int mode )
 {
 	int result = 0;
@@ -192,6 +199,24 @@ int mkdirp( char *path, int mode )
 	return result;
 }
 
+
+
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010856
+  Function Name	: *splitpath
+  Returns Type	: char
+  ----Parameter List
+  1. char *fullpath , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 char *splitpath( char *fullpath ) {
 	char *p;
 
@@ -206,7 +231,26 @@ char *splitpath( char *fullpath ) {
 	return NULL;
 }
 
-int readstr( char **p, char *buf ) {
+
+
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010902
+  Function Name	: readstr
+  Returns Type	: int
+  ----Parameter List
+  1. char **p, 
+  2.  char *buf , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
+int readstr( char **p, char *buf, size_t buf_sz ) {
 	static unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
 	uint8_t i;
 	uint8_t slr[2];
@@ -219,28 +263,52 @@ int readstr( char **p, char *buf ) {
 	if ((slr[0] == 0xff)&&(slr[1] == 0xff)) {
 		bp+=2;
 		*p = bp;
-		*buf = '\0';
+		if (buf) *buf = '\0';
 		return 0;
 	}
 	sl = (slr[0] << 8) + slr[1];
 	bp+=2;
 	bep = bp +sl;
 
-	while ((*bp != '\0')&&(sl--)) {
-		i = 0;
-		if ((*bp & mask[0]) == mask[0]) i++;
-		if ((*bp & mask[1]) == mask[1]) i++;
-		if ((*bp & mask[2]) == mask[2]) i++;
+	if (buf) {
+		while ((*bp != '\0')&&(sl--)) {
+			i = 0;
+			if ((*bp & mask[0]) == mask[0]) i++;
+			if ((*bp & mask[1]) == mask[1]) i++;
+			if ((*bp & mask[2]) == mask[2]) i++;
 
-		*buf = *bp; 
-		buf++; 
-		bp+=(i+1);
+			if (buf_sz) {
+				*buf = *bp; 
+				buf++; 
+				buf_sz--;
+			}
+
+			bp+=(i+1);
+		}
+		*buf = '\0';
 	}
-	*buf = '\0';
+
 	*p = bep;
 	return 0;
 }
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010908
+  Function Name	: readuint8
+  Returns Type	: int
+  ----Parameter List
+  1. char **p, 
+  2.  uint8_t *i , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int readuint8( char **p, uint8_t *i ) {
 	*i = **p;
 
@@ -248,6 +316,23 @@ int readuint8( char **p, uint8_t *i ) {
 	return 0;
 }
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010913
+  Function Name	: readuint16
+  Returns Type	: int
+  ----Parameter List
+  1. char **p, 
+  2.  uint16_t *i , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int readuint16( char **p, uint16_t *i ) {
 	uint16_t a = 0;
 
@@ -257,6 +342,23 @@ int readuint16( char **p, uint16_t *i ) {
 	return 0;
 }
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010915
+  Function Name	: readuint32
+  Returns Type	: int
+  ----Parameter List
+  1. char **p, 
+  2.  uint32_t *i , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int readuint32( char **p, uint32_t *i ) {
 	uint32_t a = 0;
 
@@ -272,6 +374,23 @@ int readuint32( char **p, uint32_t *i ) {
 	return 0;
 }
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010918
+  Function Name	: readuint64
+  Returns Type	: int
+  ----Parameter List
+  1. char **p, 
+  2.  uint64_t *i , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int readuint64( char **p, uint64_t *i ) {
 
 	uint64_t a = 0;
@@ -290,6 +409,24 @@ int readuint64( char **p, uint64_t *i ) {
 }
 
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010921
+  Function Name	: parse_parameters
+  Returns Type	: int
+  ----Parameter List
+  1. struct globals *g, 
+  2.  int argc, 
+  3.  char **argv , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int parse_parameters( struct globals *g, int argc, char **argv ) {
 
 	int i;
@@ -325,6 +462,23 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 }
 
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20160928-010924
+  Function Name	: main
+  Returns Type	: int
+  ----Parameter List
+  1. int argc, 
+  2.  char **argv , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
 int main( int argc, char **argv ) {
 
 	struct globals g;
@@ -406,11 +560,11 @@ int main( int argc, char **argv ) {
 	p = addr +6; // jump the header
 	while ( p < ep ) {
 
-		readstr(&p, m.domain); // domain
-		readstr(&p, m.filepath); // filepath
-		readstr(&p, m.abspath); // absolute path for symlinks
-		readstr(&p, m.digest); // digest
-		readstr(&p, m.enckey); // encryption key
+		readstr(&p, m.domain, sizeof(m.domain)); // domain
+		readstr(&p, m.filepath, sizeof(m.filepath)); // filepath
+		readstr(&p, m.abspath, sizeof(m.abspath)); // absolute path for symlinks
+		readstr(&p, m.digest, sizeof(m.digest)); // digest
+		readstr(&p, m.enckey, sizeof(m.enckey)); // encryption key
 
 		if (g.verbose) {
 			fprintf(stdout, "%s|%s|%s|%s|%s"
@@ -458,8 +612,8 @@ int main( int argc, char **argv ) {
 			if (g.verbose > 1) fprintf(stdout,"\n");
 			for (i = 0 ; i < m.numprops; i++) {
 				char s1[1024], s2[1024];
-				readstr(&p, s1);
-				readstr(&p, s2);
+				readstr(&p, s1, sizeof(s1));
+				readstr(&p, s2, sizeof(s2));
 				if (g.verbose > 1) fprintf(stdout,"\t%s=%s\n",s1,s2);
 			}
 		}
