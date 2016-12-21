@@ -27,13 +27,17 @@
 #include <stdint.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sqlite3.h>
 #include "sha1.h"
 
 #define VERSION "1.03"
 #define TOOLS_BLOCK_READ_BUFFER_SIZE 4096
 #define PATH_MAX 4096
+#define MANIFEST_TYPE_NONSQL 0
+#define MANIFEST_TYPE_SQL 1
 
 struct globals {
+	int manifest_type;
 	int decode_only;
 	int verbose;
 	int debug;
@@ -42,7 +46,7 @@ struct globals {
 	char *outputpath;
 	char manifest_filename[PATH_MAX];
 	char hashfn[PATH_MAX];
-};
+} g;
 
 struct manrec {
 	unsigned char hash[SHA1_BLOCK_SIZE];
@@ -461,6 +465,281 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 	return 0;
 }
 
+/*-----------------------------------------------------------------\
+  Date Code:	: 20161221-131244
+  Function Name	: manifest_pre10_decode
+  Returns Type	: int
+  ----Parameter List
+  1. void, 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
+int manifest_pre10_decode( struct globals *g ) {
+	struct manrec m;
+	SHA1_CTX ctx;
+
+	int i;
+	char *addr, *p, *ep;
+	int fd;
+	struct stat sb;
+
+	fd = open(g->manifest_filename, O_RDONLY);
+	if (fd == -1) {
+		fprintf(stderr,"Cannot open '%s' for reading (%s)\n", g->manifest_filename, strerror(errno));
+		exit(1);
+	}
+
+	/*
+	 * Get manifest filesize so we can mmap the whole file 
+	 */
+	if (fstat(fd, &sb) == -1)  {
+		fprintf(stderr,"Cannot stat '%s' (%s)\n", g->manifest_filename, strerror(errno));
+		exit(1);
+	}
+
+	/*
+	 * Attempt to mmap the file
+	 */
+	addr = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr,"Cannot mmap '%s' (%s)\n", g->manifest_filename, strerror(errno));
+		exit(1);
+	}
+
+	/*
+	 * Verify the Manifest file
+	 */
+	p = addr;
+	ep = addr +sb.st_size;
+	if (memcmp(p, "mbdb", 4)) {
+		fprintf(stderr,"\"%s\" does not appear to be a folder containing a valid Manifest.mbdb file", g->inputpath);
+		exit(1);
+	}
+
+	p = addr +6; // jump the header
+	while ( p < ep ) {
+
+		readstr(&p, m.domain, sizeof(m.domain)); // domain
+		readstr(&p, m.filepath, sizeof(m.filepath)); // filepath
+		readstr(&p, m.abspath, sizeof(m.abspath)); // absolute path for symlinks
+		readstr(&p, m.digest, sizeof(m.digest)); // digest
+		readstr(&p, m.enckey, sizeof(m.enckey)); // encryption key
+
+		if (g->verbose) {
+			fprintf(stdout, "%s|%s|%s|%s|%s"
+					, m.domain
+					, m.filepath
+					, m.abspath
+					, m.digest
+					, m.enckey
+				   );
+		}
+
+		readuint16(&p, &m.mode); // mode
+		readuint64(&p, &m.inode); // inode#
+		readuint32(&p, &m.userid); // uid
+		readuint32(&p, &m.groupid); // gid
+		readuint32(&p, &m.mtime); // last modified time
+		readuint32(&p, &m.atime); // last accessed time
+		readuint32(&p, &m.ctime); // created time
+		readuint64(&p, &m.filelen); // size
+		readuint8(&p, &m.flags); // protection class
+		readuint8(&p, &m.numprops); // number of properties
+
+		if (g->verbose) {
+			fprintf(stdout,"|%c%c%c"
+					, m.mode & 0x4 ? 'r' : '-'
+					, m.mode & 0x2 ? 'w' : '-'
+					, m.mode & 0x1 ? 'x' : '-'
+				   );
+
+			fprintf(stdout,"|%lu|uid:%u gid:%u|Times(%u,%u,%u)|Size:%ld bytes|Flags:%02x|Numprops:%u"
+					, m.inode
+					, m.userid
+					, m.groupid
+					, m.mtime
+					, m.atime
+					, m.ctime
+					, m.filelen
+					, m.flags
+					, m.numprops
+				   );
+		}
+
+
+		if (m.numprops) {
+			if (g->verbose > 1) fprintf(stdout,"\n");
+			for (i = 0 ; i < m.numprops; i++) {
+				char s1[1024], s2[1024];
+				readstr(&p, s1, sizeof(s1));
+				readstr(&p, s2, sizeof(s2));
+				if (g->verbose > 1) fprintf(stdout,"\t%s=%s\n",s1,s2);
+			}
+		}
+
+		if (g->verbose) fprintf(stdout,"\n");
+
+		/*
+		 * Compute the SHA1 hash for the manifest item
+		 */
+		snprintf(m.shain, sizeof(m.shain),"%s-%s", m.domain, m.filepath);
+		sha1_init(&ctx);
+		sha1_update(&ctx, (uint8_t *)m.shain, strlen(m.shain));
+		sha1_final(&ctx, m.hash);
+
+		for (i=0; i < SHA1_BLOCK_SIZE; i++) {
+			sprintf(m.hashstr+(i*2),"%02hhx",m.hash[i]);
+		}
+
+		/*
+		 * Final interpretation of the decoded manifest item and 
+		 * deciding what to do with it.
+		 */
+		if ((m.mode & 0xE000)==0x8000) {
+			snprintf(g->hashfn, sizeof(g->hashfn), "%s/%s", g->inputpath, m.hashstr);
+			if( access( g->hashfn, F_OK ) != -1 ) {
+				char newpath[PATH_MAX];
+				char *fn;
+				if (g->verbose) fprintf(stdout,"\n");
+				if (!g->quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g->hashfn, m.filepath);
+				snprintf(newpath, sizeof(newpath),"%s/%s", g->outputpath, m.filepath);
+				if (g->decode_only == 0) {
+					fn = splitpath(newpath);
+					if (fn) {
+						mkdirp( newpath, S_IRWXU );
+						*(fn -1) = '/';
+						filecopy( g->hashfn, newpath);
+						if (!g->quiet) fprintf(stdout, " copied");
+					}
+				}
+				if (!g->quiet) fprintf(stdout,"\n");
+			} else {
+				if (g->verbose) fprintf(stdout, "%s =Not present=> %s\n", g->hashfn, m.filepath);
+			}
+		} else if ((m.mode & 0xE000) == 0x4000) {
+			if (!g->quiet) fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
+		} else if ((m.mode & 0xE000) == 0xA000) {
+			if (!g->quiet) fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
+		}
+	}
+
+	munmap(addr, sb.st_size);
+	close(fd);
+
+	return 0;
+}
+
+
+
+/*-----------------------------------------------------------------\
+  Date Code:	: 20161221-132159
+  Function Name	: int
+  Returns Type	: static
+  ----Parameter List
+  1. sqlite3_callback( void *NotUsed, 
+  2.  int argc, 
+  3.  char **argv, 
+  4.  char **azColName , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
+static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName ) {
+
+	char *n="", *fileID, *domain, *relativePath, *flags, *file;
+
+	fileID = argv[0]?argv[0]:n;
+	domain = argv[1]?argv[1]:n;
+	relativePath = argv[2]?argv[2]:n;
+	flags = argv[3]?argv[3]:n;
+	file = argv[4]?argv[4]:n;
+
+
+	if (g.debug) fprintf(stdout,"%s", file);
+
+	if (flags[0] == '1') {
+		snprintf(g.hashfn, sizeof(g.hashfn), "%s/%c%c/%s", g.inputpath, fileID[0], fileID[1], fileID);
+		if( access( g.hashfn, F_OK ) != -1 ) {
+			char newpath[PATH_MAX];
+			char *fn;
+			if (!g.quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, relativePath);
+			snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, relativePath);
+			if (g.decode_only == 0) {
+				fn = splitpath(newpath);
+				if (fn) {
+					mkdirp( newpath, S_IRWXU );
+					*(fn -1) = '/';
+					filecopy( g.hashfn, newpath);
+					if (!g.quiet) fprintf(stdout, " copied");
+				}
+			}
+			if (!g.quiet) fprintf(stdout,"\n");
+		} else {
+			if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, relativePath);
+		}
+	} else {
+		if (!g.quiet) fprintf(stdout,"OTHER: %s-%s\n", domain, relativePath);
+	}
+
+	return 0;
+
+}
+
+
+/*-----------------------------------------------------------------\
+  Date Code:	: 20161221-131836
+  Function Name	: manifest_sqlite3_decode
+  Returns Type	: int
+  ----Parameter List
+  1. struct globals *g , 
+  ------------------
+  Exit Codes	: 
+  Side Effects	: 
+  --------------------------------------------------------------------
+Comments:
+
+--------------------------------------------------------------------
+Changes:
+
+\------------------------------------------------------------------*/
+int manifest_sqlite3_decode( struct globals *g ) {
+
+	int rc;
+	sqlite3 *db;
+	char sql[1024];
+	char *zErrMsg;
+
+	rc = sqlite3_open( g->manifest_filename, &db );
+
+	if ( rc ) {
+		fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		return (1);
+	}
+
+	snprintf(sql, sizeof(sql), "SELECT fileID, domain, relativePath, flags, file from Files;");
+	rc = sqlite3_exec( db, sql, sq3_callback, 0, &zErrMsg);
+	if ( rc != SQLITE_OK ) {
+		fprintf(stderr,"SQL Error: %s\n", zErrMsg);
+	}
+
+	sqlite3_close(db);
+
+	return 0;
+}
 
 /*-----------------------------------------------------------------\
   Date Code:	: 20160928-010924
@@ -481,14 +760,8 @@ Changes:
 \------------------------------------------------------------------*/
 int main( int argc, char **argv ) {
 
-	struct globals g;
-	struct manrec m;
-	SHA1_CTX ctx;
-
-	int i;
-	char *addr, *p, *ep;
 	int fd;
-	struct stat sb;
+	struct stat statbuf;
 
 	if (argc < 4) {
 		fprintf(stderr,"%s\n",help);
@@ -523,149 +796,24 @@ int main( int argc, char **argv ) {
 	/*
 	 * Attempt to open the manifest file
 	 */
+	/* Determine which Manifest type we have */
 	snprintf(g.manifest_filename, sizeof(g.manifest_filename),"%s/Manifest.mbdb", g.inputpath);
-	fd = open(g.manifest_filename, O_RDONLY);
-	if (fd == -1) {
-		fprintf(stderr,"Cannot open '%s' for reading (%s)\n", g.manifest_filename, strerror(errno));
-		exit(1);
-	}
+	fd = stat( g.manifest_filename, &statbuf );
+	if (fd == 0) {
+		g.manifest_type = MANIFEST_TYPE_NONSQL;
+		manifest_pre10_decode( &g );
 
-	/*
-	 * Get manifest filesize so we can mmap the whole file 
-	 */
-	if (fstat(fd, &sb) == -1)  {
-		fprintf(stderr,"Cannot stat '%s' (%s)\n", g.manifest_filename, strerror(errno));
-		exit(1);
-	}
-
-	/*
-	 * Attempt to mmap the file
-	 */
-	addr = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr,"Cannot mmap '%s' (%s)\n", g.manifest_filename, strerror(errno));
-		exit(1);
-	}
-
-	/*
-	 * Verify the Manifest file
-	 */
-	p = addr;
-	ep = addr +sb.st_size;
-	if (memcmp(p, "mbdb", 4)) {
-		fprintf(stderr,"\"%s\" does not appear to be a folder containing a valid Manifest.mbdb file", g.inputpath);
-		exit(1);
-	}
-
-	p = addr +6; // jump the header
-	while ( p < ep ) {
-
-		readstr(&p, m.domain, sizeof(m.domain)); // domain
-		readstr(&p, m.filepath, sizeof(m.filepath)); // filepath
-		readstr(&p, m.abspath, sizeof(m.abspath)); // absolute path for symlinks
-		readstr(&p, m.digest, sizeof(m.digest)); // digest
-		readstr(&p, m.enckey, sizeof(m.enckey)); // encryption key
-
-		if (g.verbose) {
-			fprintf(stdout, "%s|%s|%s|%s|%s"
-					, m.domain
-					, m.filepath
-					, m.abspath
-					, m.digest
-					, m.enckey
-				   );
-		}
-
-		readuint16(&p, &m.mode); // mode
-		readuint64(&p, &m.inode); // inode#
-		readuint32(&p, &m.userid); // uid
-		readuint32(&p, &m.groupid); // gid
-		readuint32(&p, &m.mtime); // last modified time
-		readuint32(&p, &m.atime); // last accessed time
-		readuint32(&p, &m.ctime); // created time
-		readuint64(&p, &m.filelen); // size
-		readuint8(&p, &m.flags); // protection class
-		readuint8(&p, &m.numprops); // number of properties
-
-		if (g.verbose) {
-			fprintf(stdout,"|%c%c%c"
-					, m.mode & 0x4 ? 'r' : '-'
-					, m.mode & 0x2 ? 'w' : '-'
-					, m.mode & 0x1 ? 'x' : '-'
-				   );
-
-			fprintf(stdout,"|%lu|uid:%u gid:%u|Times(%u,%u,%u)|Size:%ld bytes|Flags:%02x|Numprops:%u"
-					, m.inode
-					, m.userid
-					, m.groupid
-					, m.mtime
-					, m.atime
-					, m.ctime
-					, m.filelen
-					, m.flags
-					, m.numprops
-				   );
-		}
-
-
-		if (m.numprops) {
-			if (g.verbose > 1) fprintf(stdout,"\n");
-			for (i = 0 ; i < m.numprops; i++) {
-				char s1[1024], s2[1024];
-				readstr(&p, s1, sizeof(s1));
-				readstr(&p, s2, sizeof(s2));
-				if (g.verbose > 1) fprintf(stdout,"\t%s=%s\n",s1,s2);
-			}
-		}
-
-		if (g.verbose) fprintf(stdout,"\n");
-
-		/*
-		 * Compute the SHA1 hash for the manifest item
-		 */
-		snprintf(m.shain, sizeof(m.shain),"%s-%s", m.domain, m.filepath);
-		sha1_init(&ctx);
-		sha1_update(&ctx, (uint8_t *)m.shain, strlen(m.shain));
-		sha1_final(&ctx, m.hash);
-
-		for (i=0; i < SHA1_BLOCK_SIZE; i++) {
-			sprintf(m.hashstr+(i*2),"%02hhx",m.hash[i]);
-		}
-
-		/*
-		 * Final interpretation of the decoded manifest item and 
-		 * deciding what to do with it.
-		 */
-		if ((m.mode & 0xE000)==0x8000) {
-			snprintf(g.hashfn, sizeof(g.hashfn), "%s/%s", g.inputpath, m.hashstr);
-			if( access( g.hashfn, F_OK ) != -1 ) {
-				char newpath[PATH_MAX];
-				char *fn;
-				if (g.verbose) fprintf(stdout,"\n");
-				if (!g.quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, m.filepath);
-				snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, m.filepath);
-				if (g.decode_only == 0) {
-					fn = splitpath(newpath);
-					if (fn) {
-						mkdirp( newpath, S_IRWXU );
-						*(fn -1) = '/';
-						filecopy( g.hashfn, newpath);
-						if (!g.quiet) fprintf(stdout, " copied");
-					}
-				}
-				if (!g.quiet) fprintf(stdout,"\n");
-			} else {
-				if (g.verbose) fprintf(stdout, "%s =Not present=> %s\n", g.hashfn, m.filepath);
-			}
-		} else if ((m.mode & 0xE000) == 0x4000) {
-			if (!g.quiet) fprintf(stdout,"DIR: %s-%s\n",m.domain, m.filepath);
-		} else if ((m.mode & 0xE000) == 0xA000) {
-			if (!g.quiet) fprintf(stdout,"LINK: %s-%s\n", m.domain, m.filepath);
+	} else {
+		snprintf(g.manifest_filename, sizeof(g.manifest_filename),"%s/Manifest.db", g.inputpath);
+		fd = stat( g.manifest_filename, &statbuf );
+		if (fd == 0) {
+			g.manifest_type = MANIFEST_TYPE_SQL;
+			manifest_sqlite3_decode( &g );
+		} else {
+			fprintf(stderr,"Could not load SQLite3 (iOS 10+) manifest (%s)\n", g.manifest_filename);
 		}
 	}
 
-	munmap(addr, sb.st_size);
-	close(fd);
 
 	return 0;
 

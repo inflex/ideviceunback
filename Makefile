@@ -1,9 +1,9 @@
 CC=gcc
 PRF=-O2
 PROFILE=
-CFLAGS= -Wall -Werror -g -I.
+CFLAGS= -Wall -g -I.
 OBJS= sha1.o
-LIBS=
+LIBS= -lsqlite3
 
 all: ideviceunback
 
@@ -11,7 +11,7 @@ all: ideviceunback
 	$(CC) $(CFLAGS) -c $*.c
 
 ideviceunback: $(OBJS) ideviceunback.c
-	gcc $(CFLAGS) ideviceunback.c $(OBJS) -o ideviceunback 
+	gcc $(CFLAGS) ideviceunback.c $(OBJS) -o ideviceunback  $(LIBS)
 
 default: ideviceunback
 
