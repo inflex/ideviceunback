@@ -1,4 +1,4 @@
-CFLAGS= -Wall -g -I.
+CFLAGS= -Wall -g
 OBJS= sha1.o
 LIBS= -lsqlite3
 
