@@ -10,4 +10,4 @@ clean:
 	$(RM) ideviceunback *.o
 
 install: ideviceunback
-	cp ideviceunback /usr/local/bin
+	install ideviceunback /usr/local/bin
