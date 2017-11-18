@@ -1,11 +1,10 @@
 CFLAGS= -Wall -g
 OBJS= sha1.o
-LIBS= -lsqlite3
+LDLIBS= -lsqlite3
 
 all: ideviceunback
 
 ideviceunback: $(OBJS) ideviceunback.c
-	gcc $(CFLAGS) ideviceunback.c $(OBJS) -o ideviceunback  $(LIBS)
 
 clean:
 	rm ideviceunback *.o
