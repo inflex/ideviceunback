@@ -7,7 +7,7 @@ all: ideviceunback
 ideviceunback: $(OBJS) ideviceunback.c
 
 clean:
-	rm ideviceunback *.o
+	$(RM) ideviceunback *.o
 
 install: ideviceunback
 	cp ideviceunback /usr/local/bin
