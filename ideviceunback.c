@@ -39,6 +39,7 @@
 struct globals {
 	int manifest_type;
 	int decode_only;
+	int linkonly;
 	int verbose;
 	int debug;
 	int quiet;
@@ -72,6 +73,7 @@ struct manrec {
 char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h] [-V]\n\
 			 -i <input path> : Folder containing the Manifest.mbdb\n\
 			 -o <output path> : Where to copy the sorted files to\n\
+			 -l : Link mode, link files to original instead of copying\n\
 			 -v : Verbose, use multiple times to increase verbosity\n\
 			 -q : Quiet mode\n\
 			 -m : Decode the manifest only, don't copy the files\n\
@@ -440,10 +442,11 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
 			switch (argv[i][1]) {
 				case 'h': fprintf(stdout,"%s", help); exit(0); break;
 				case 'V': fprintf(stdout,"%s\n",  VERSION); exit(0); break;
-				case 'v': (g->verbose)++; break;
-				case 'q': (g->quiet)++; break;
-				case 'd': (g->debug)++; break;
-				case 'm': (g->decode_only)++; break;
+				case 'l': g->linkonly = 1; break;
+				case 'v': g->verbose++; break;
+				case 'q': g->quiet = 1; break;
+				case 'd': g->debug++; break;
+				case 'm': g->decode_only = 1; break;
 				case 'i':
 						  if ((i < argc -1) && (argv[i+1][0] != '-')){
 							  i++;
@@ -615,8 +618,13 @@ int manifest_pre10_decode( struct globals *g ) {
 					if (fn) {
 						mkdirp( newpath, S_IRWXU );
 						*(fn -1) = '/';
-						filecopy( g->hashfn, newpath);
-						if (!g->quiet) fprintf(stdout, " copied");
+						if (g->linkonly) {
+							link( g->hashfn, newpath );
+							if (!g->quiet) fprintf(stdout, " linked");
+						} else {
+							filecopy( g->hashfn, newpath);
+							if (!g->quiet) fprintf(stdout, " copied");
+						}	
 					}
 				}
 				if (!g->quiet) fprintf(stdout,"\n");
@@ -682,8 +690,13 @@ static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName 
 				if (fn) {
 					mkdirp( newpath, S_IRWXU );
 					*(fn -1) = '/';
-					filecopy( g.hashfn, newpath);
-					if (!g.quiet) fprintf(stdout, " copied");
+					if (g.linkonly) {
+						link( g.hashfn, newpath );
+						if (!g.quiet) fprintf(stdout, " linked");
+					} else {
+						filecopy( g.hashfn, newpath);
+						if (!g.quiet) fprintf(stdout, " copied");
+					}
 				}
 			}
 			if (!g.quiet) fprintf(stdout,"\n");
@@ -769,6 +782,7 @@ int main( int argc, char **argv ) {
 	}
 
 	g.debug = 0;
+	g.linkonly = 0;
 	g.verbose = 0;
 	g.quiet = 0;
 	g.decode_only = 0;
