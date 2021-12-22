@@ -255,7 +255,7 @@ Changes:
 
 \------------------------------------------------------------------*/
 int readstr( char **p, char *buf, size_t buf_sz ) {
-	static unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
+	static const unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
 	uint8_t slr[2];
 	uint16_t sl;
 	char *bp = *p;
