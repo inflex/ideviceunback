@@ -126,7 +126,7 @@ int filecopy( char *source, char *dest )
 			wsize = fwrite( buffer, 1, rsize, d );
 			if ( rsize != wsize )
 			{
-				fprintf(stderr,"WARNING: Read '%lu' bytes, but only could write '%lu'", rsize, wsize );
+				fprintf(stderr,"WARNING: Read '%zu' bytes, but only could write '%zu'", rsize, wsize );
 			}
 		}
 	} while ( rsize > 0 );
