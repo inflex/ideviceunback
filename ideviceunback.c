@@ -224,10 +224,8 @@ Changes:
 
 \------------------------------------------------------------------*/
 char *splitpath( char *fullpath ) {
-	char *p;
-
 	if (fullpath) {
-		p = strrchr(fullpath, '/');
+		char *p = strrchr(fullpath, '/');
 		if (p) {
 			*p = '\0';
 			p++;
@@ -258,7 +256,6 @@ Changes:
 \------------------------------------------------------------------*/
 int readstr( char **p, char *buf, size_t buf_sz ) {
 	static unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
-	uint8_t i;
 	uint8_t slr[2];
 	uint16_t sl;
 	char *bp = *p;
@@ -278,7 +275,7 @@ int readstr( char **p, char *buf, size_t buf_sz ) {
 
 	if (buf) {
 		while ((*bp != '\0')&&(sl--)) {
-			i = 0;
+			uint8_t i = 0;
 			if ((*bp & mask[0]) == mask[0]) i++;
 			if ((*bp & mask[1]) == mask[1]) i++;
 			if ((*bp & mask[2]) == mask[2]) i++;
@@ -609,12 +606,11 @@ int manifest_pre10_decode( struct globals *g ) {
 			snprintf(g->hashfn, sizeof(g->hashfn), "%s/%s", g->inputpath, m.hashstr);
 			if( access( g->hashfn, F_OK ) != -1 ) {
 				char newpath[PATH_MAX];
-				char *fn;
 				if (g->verbose) fprintf(stdout,"\n");
 				if (!g->quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g->hashfn, m.filepath);
 				snprintf(newpath, sizeof(newpath),"%s/%s", g->outputpath, m.filepath);
 				if (g->decode_only == 0) {
-					fn = splitpath(newpath);
+					char *fn = splitpath(newpath);
 					if (fn) {
 						mkdirp( newpath, S_IRWXU );
 						*(fn -1) = '/';
@@ -682,11 +678,10 @@ static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName 
 		snprintf(g.hashfn, sizeof(g.hashfn), "%s/%c%c/%s", g.inputpath, fileID[0], fileID[1], fileID);
 		if( access( g.hashfn, F_OK ) != -1 ) {
 			char newpath[PATH_MAX];
-			char *fn;
 			if (!g.quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, relativePath);
 			snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, relativePath);
 			if (g.decode_only == 0) {
-				fn = splitpath(newpath);
+				char *fn = splitpath(newpath);
 				if (fn) {
 					mkdirp( newpath, S_IRWXU );
 					*(fn -1) = '/';
