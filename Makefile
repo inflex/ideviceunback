@@ -1,6 +1,6 @@
-CFLAGS= -Wall -g
-OBJS= sha1.o
-LDLIBS= -lsqlite3
+CFLAGS = -Wall -g
+OBJS = sha1.o
+LDLIBS = -lsqlite3
 
 all: ideviceunback
 
