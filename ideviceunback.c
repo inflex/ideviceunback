@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sqlite3.h>
@@ -560,7 +561,7 @@ int manifest_pre10_decode( struct globals *g ) {
 					, m.mode & 0x1 ? 'x' : '-'
 				   );
 
-			fprintf(stdout,"|%lu|uid:%u gid:%u|Times(%u,%u,%u)|Size:%ld bytes|Flags:%02x|Numprops:%u"
+			fprintf(stdout,"|%" PRIu64 "|uid:%" PRIu32 " gid:%" PRIu32 "|Times(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")|Size:%" PRIu64 " bytes|Flags:%02" PRIx8 "|Numprops:%" PRIu8
 					, m.inode
 					, m.userid
 					, m.groupid
