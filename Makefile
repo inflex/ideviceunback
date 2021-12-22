@@ -1,3 +1,6 @@
+PREFIX = /usr/local
+BINDIR = $(PREFIX)/bin
+INSTALLDIR = $(DESTDIR)$(BINDIR)
 CFLAGS = -Wall -g
 OBJS = sha1.o
 LDLIBS = -lsqlite3
@@ -12,4 +15,5 @@ clean:
 	$(RM) ideviceunback *.o
 
 install: ideviceunback
-	install ideviceunback /usr/local/bin
+	mkdir -p $(INSTALLDIR)
+	install ideviceunback $(INSTALLDIR)
