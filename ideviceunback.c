@@ -117,6 +117,7 @@ int filecopy( char *source, char *dest )
 	if (!d)
 	{
 		fprintf(stderr,"ERROR: Cannot open '%s' for writing (%s).", dest, strerror(errno) );
+		fclose(s);
 		return -1;
 	}
 
