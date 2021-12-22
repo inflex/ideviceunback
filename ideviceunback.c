@@ -617,8 +617,10 @@ int manifest_pre10_decode( struct globals *g ) {
 						mkdirp( newpath, S_IRWXU );
 						*(fn -1) = '/';
 						if (g->linkonly) {
-							link( g->hashfn, newpath );
-							if (!g->quiet) fprintf(stdout, " linked");
+							if (link( g->hashfn, newpath ) == -1) {
+								fprintf(stderr, "ERROR: link('%s', '%s'); '%s'", g->hashfn, newpath, strerror(errno));
+								if (!g->quiet) fprintf(stdout, " not linked");
+							} else if (!g->quiet) fprintf(stdout, " linked");
 						} else {
 							filecopy( g->hashfn, newpath);
 							if (!g->quiet) fprintf(stdout, " copied");
@@ -688,8 +690,10 @@ static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName 
 					mkdirp( newpath, S_IRWXU );
 					*(fn -1) = '/';
 					if (g.linkonly) {
-						link( g.hashfn, newpath );
-						if (!g.quiet) fprintf(stdout, " linked");
+						if (link( g.hashfn, newpath ) == -1) {
+							fprintf(stderr, "ERROR: link('%s', '%s'); '%s'", g.hashfn, newpath, strerror(errno));
+							if (!g.quiet) fprintf(stdout, " not linked");
+						} else if (!g.quiet) fprintf(stdout, " linked");
 					} else {
 						filecopy( g.hashfn, newpath);
 						if (!g.quiet) fprintf(stdout, " copied");
