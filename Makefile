@@ -1,7 +1,7 @@
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 INSTALLDIR = $(DESTDIR)$(BINDIR)
-CFLAGS = -Wall -g
+CFLAGS += -Wall -g
 OBJS = sha1.o
 LDLIBS = -lsqlite3
 
