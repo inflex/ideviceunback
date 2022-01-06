@@ -7,16 +7,16 @@
 
  Permission is hereby granted, free of charge, to any person obtaining
  a copy of this software and associated documentation files (the "Software"),
- to deal in the Software without restriction, including without limitation 
+ to deal in the Software without restriction, including without limitation
  the rights to use, copy, modify, merge, publish, distribute, sublicense,
- and/or sell copies of the Software, and to permit persons to whom the Software 
+ and/or sell copies of the Software, and to permit persons to whom the Software
  is furnished to do so, subject to the following conditions:
 
  The above copyright notice and this permission notice shall be included in
  all copies or substantial portions of the Software.
 
  *
- */ 
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sqlite3.h>
@@ -55,7 +56,7 @@ struct manrec {
 	char domain[1024];
 	char filepath[1024];
 	char abspath[1024];
-	char digest[1024]; 
+	char digest[1024];
 	char enckey[1024];
 	char shain[2048];
 	uint16_t mode;
@@ -87,11 +88,11 @@ char help[]="ideviceunback [-i <input path>] [-o <output path>] [-v] [-q] [-h] [
   Function Name	: filecopy
   Returns Type	: int
   ----Parameter List
-  1. char *source, 
-  2.  char *dest , 
+  1. char *source,
+  2.  char *dest ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -101,7 +102,7 @@ Changes:
 \------------------------------------------------------------------*/
 int filecopy( char *source, char *dest )
 {
-	static char buffer[4096]; 
+	static char buffer[4096];
 	FILE *s, *d;
 	size_t rsize, wsize;
 
@@ -116,6 +117,7 @@ int filecopy( char *source, char *dest )
 	if (!d)
 	{
 		fprintf(stderr,"ERROR: Cannot open '%s' for writing (%s).", dest, strerror(errno) );
+		fclose(s);
 		return -1;
 	}
 
@@ -126,7 +128,7 @@ int filecopy( char *source, char *dest )
 			wsize = fwrite( buffer, 1, rsize, d );
 			if ( rsize != wsize )
 			{
-				fprintf(stderr,"WARNING: Read '%lu' bytes, but only could write '%lu'", rsize, wsize );
+				fprintf(stderr,"WARNING: Read '%zu' bytes, but only could write '%zu'", rsize, wsize );
 			}
 		}
 	} while ( rsize > 0 );
@@ -144,11 +146,11 @@ int filecopy( char *source, char *dest )
   Function Name	: mkdirp
   Returns Type	: int
   ----Parameter List
-  1. char *path, 
-  2.  int mode , 
+  1. char *path,
+  2.  int mode ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -212,10 +214,10 @@ int mkdirp( char *path, int mode )
   Function Name	: *splitpath
   Returns Type	: char
   ----Parameter List
-  1. char *fullpath , 
+  1. char *fullpath ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -224,10 +226,8 @@ Changes:
 
 \------------------------------------------------------------------*/
 char *splitpath( char *fullpath ) {
-	char *p;
-
 	if (fullpath) {
-		p = strrchr(fullpath, '/');
+		char *p = strrchr(fullpath, '/');
 		if (p) {
 			*p = '\0';
 			p++;
@@ -244,11 +244,11 @@ char *splitpath( char *fullpath ) {
   Function Name	: readstr
   Returns Type	: int
   ----Parameter List
-  1. char **p, 
-  2.  char *buf , 
+  1. char **p,
+  2.  char *buf ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -257,8 +257,7 @@ Changes:
 
 \------------------------------------------------------------------*/
 int readstr( char **p, char *buf, size_t buf_sz ) {
-	static unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
-	uint8_t i;
+	static const unsigned short mask[] = {192, 224, 240}; // UTF8 size detect mask
 	uint8_t slr[2];
 	uint16_t sl;
 	char *bp = *p;
@@ -278,14 +277,14 @@ int readstr( char **p, char *buf, size_t buf_sz ) {
 
 	if (buf) {
 		while ((*bp != '\0')&&(sl--)) {
-			i = 0;
+			uint8_t i = 0;
 			if ((*bp & mask[0]) == mask[0]) i++;
 			if ((*bp & mask[1]) == mask[1]) i++;
 			if ((*bp & mask[2]) == mask[2]) i++;
 
 			if (buf_sz) {
-				*buf = *bp; 
-				buf++; 
+				*buf = *bp;
+				buf++;
 				buf_sz--;
 			}
 
@@ -303,11 +302,11 @@ int readstr( char **p, char *buf, size_t buf_sz ) {
   Function Name	: readuint8
   Returns Type	: int
   ----Parameter List
-  1. char **p, 
-  2.  uint8_t *i , 
+  1. char **p,
+  2.  uint8_t *i ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -327,11 +326,11 @@ int readuint8( char **p, uint8_t *i ) {
   Function Name	: readuint16
   Returns Type	: int
   ----Parameter List
-  1. char **p, 
-  2.  uint16_t *i , 
+  1. char **p,
+  2.  uint16_t *i ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -353,11 +352,11 @@ int readuint16( char **p, uint16_t *i ) {
   Function Name	: readuint32
   Returns Type	: int
   ----Parameter List
-  1. char **p, 
-  2.  uint32_t *i , 
+  1. char **p,
+  2.  uint32_t *i ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -370,10 +369,10 @@ int readuint32( char **p, uint32_t *i ) {
 
 	memcpy(&a, *p, sizeof(uint32_t));
 	*i = (
-			((a & 0x000000FFUL) << 24) | 
-			((a & 0x0000FF00UL) <<  8) | 
-			((a & 0x00FF0000UL) >>  8) | 
-			((a & 0xFF000000UL) >> 24) 
+			((a & 0x000000FFUL) << 24) |
+			((a & 0x0000FF00UL) <<  8) |
+			((a & 0x00FF0000UL) >>  8) |
+			((a & 0xFF000000UL) >> 24)
 		 );
 	(*p) += 4;
 
@@ -385,11 +384,11 @@ int readuint32( char **p, uint32_t *i ) {
   Function Name	: readuint64
   Returns Type	: int
   ----Parameter List
-  1. char **p, 
-  2.  uint64_t *i , 
+  1. char **p,
+  2.  uint64_t *i ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -402,13 +401,13 @@ int readuint64( char **p, uint64_t *i ) {
 	uint64_t a = 0;
 
 	memcpy(&a, *p, sizeof(uint64_t));
-	*i = ((a & 0x00000000000000FFULL) << 56) | 
-		((a & 0x000000000000FF00ULL) << 40) | 
-		((a & 0x0000000000FF0000ULL) << 24) | 
-		((a & 0x00000000FF000000ULL) <<  8) | 
-		((a & 0x000000FF00000000ULL) >>  8) | 
-		((a & 0x0000FF0000000000ULL) >> 24) | 
-		((a & 0x00FF000000000000ULL) >> 40) | 
+	*i = ((a & 0x00000000000000FFULL) << 56) |
+		((a & 0x000000000000FF00ULL) << 40) |
+		((a & 0x0000000000FF0000ULL) << 24) |
+		((a & 0x00000000FF000000ULL) <<  8) |
+		((a & 0x000000FF00000000ULL) >>  8) |
+		((a & 0x0000FF0000000000ULL) >> 24) |
+		((a & 0x00FF000000000000ULL) >> 40) |
 		((a & 0xFF00000000000000ULL) >> 56);
 	(*p) += 8;
 	return 0;
@@ -420,12 +419,12 @@ int readuint64( char **p, uint64_t *i ) {
   Function Name	: parse_parameters
   Returns Type	: int
   ----Parameter List
-  1. struct globals *g, 
-  2.  int argc, 
-  3.  char **argv , 
+  1. struct globals *g,
+  2.  int argc,
+  3.  char **argv ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -473,10 +472,10 @@ int parse_parameters( struct globals *g, int argc, char **argv ) {
   Function Name	: manifest_pre10_decode
   Returns Type	: int
   ----Parameter List
-  1. void, 
+  1. void,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -500,7 +499,7 @@ int manifest_pre10_decode( struct globals *g ) {
 	}
 
 	/*
-	 * Get manifest filesize so we can mmap the whole file 
+	 * Get manifest filesize so we can mmap the whole file
 	 */
 	if (fstat(fd, &sb) == -1)  {
 		fprintf(stderr,"Cannot stat '%s' (%s)\n", g->manifest_filename, strerror(errno));
@@ -563,7 +562,7 @@ int manifest_pre10_decode( struct globals *g ) {
 					, m.mode & 0x1 ? 'x' : '-'
 				   );
 
-			fprintf(stdout,"|%lu|uid:%u gid:%u|Times(%u,%u,%u)|Size:%ld bytes|Flags:%02x|Numprops:%u"
+			fprintf(stdout,"|%" PRIu64 "|uid:%" PRIu32 " gid:%" PRIu32 "|Times(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")|Size:%" PRIu64 " bytes|Flags:%02" PRIx8 "|Numprops:%" PRIu8
 					, m.inode
 					, m.userid
 					, m.groupid
@@ -602,29 +601,30 @@ int manifest_pre10_decode( struct globals *g ) {
 		}
 
 		/*
-		 * Final interpretation of the decoded manifest item and 
+		 * Final interpretation of the decoded manifest item and
 		 * deciding what to do with it.
 		 */
 		if ((m.mode & 0xE000)==0x8000) {
 			snprintf(g->hashfn, sizeof(g->hashfn), "%s/%s", g->inputpath, m.hashstr);
 			if( access( g->hashfn, F_OK ) != -1 ) {
 				char newpath[PATH_MAX];
-				char *fn;
 				if (g->verbose) fprintf(stdout,"\n");
 				if (!g->quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g->hashfn, m.filepath);
 				snprintf(newpath, sizeof(newpath),"%s/%s", g->outputpath, m.filepath);
 				if (g->decode_only == 0) {
-					fn = splitpath(newpath);
+					char *fn = splitpath(newpath);
 					if (fn) {
 						mkdirp( newpath, S_IRWXU );
 						*(fn -1) = '/';
 						if (g->linkonly) {
-							link( g->hashfn, newpath );
-							if (!g->quiet) fprintf(stdout, " linked");
+							if (link( g->hashfn, newpath ) == -1) {
+								fprintf(stderr, "ERROR: link('%s', '%s'); '%s'", g->hashfn, newpath, strerror(errno));
+								if (!g->quiet) fprintf(stdout, " not linked");
+							} else if (!g->quiet) fprintf(stdout, " linked");
 						} else {
 							filecopy( g->hashfn, newpath);
 							if (!g->quiet) fprintf(stdout, " copied");
-						}	
+						}
 					}
 				}
 				if (!g->quiet) fprintf(stdout,"\n");
@@ -651,13 +651,13 @@ int manifest_pre10_decode( struct globals *g ) {
   Function Name	: int
   Returns Type	: static
   ----Parameter List
-  1. sqlite3_callback( void *NotUsed, 
-  2.  int argc, 
-  3.  char **argv, 
-  4.  char **azColName , 
+  1. sqlite3_callback( void *NotUsed,
+  2.  int argc,
+  3.  char **argv,
+  4.  char **azColName ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -682,17 +682,18 @@ static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName 
 		snprintf(g.hashfn, sizeof(g.hashfn), "%s/%c%c/%s", g.inputpath, fileID[0], fileID[1], fileID);
 		if( access( g.hashfn, F_OK ) != -1 ) {
 			char newpath[PATH_MAX];
-			char *fn;
 			if (!g.quiet) fprintf(stdout,"FILE: %s =(exists)=> %s", g.hashfn, relativePath);
 			snprintf(newpath, sizeof(newpath),"%s/%s", g.outputpath, relativePath);
 			if (g.decode_only == 0) {
-				fn = splitpath(newpath);
+				char *fn = splitpath(newpath);
 				if (fn) {
 					mkdirp( newpath, S_IRWXU );
 					*(fn -1) = '/';
 					if (g.linkonly) {
-						link( g.hashfn, newpath );
-						if (!g.quiet) fprintf(stdout, " linked");
+						if (link( g.hashfn, newpath ) == -1) {
+							fprintf(stderr, "ERROR: link('%s', '%s'); '%s'", g.hashfn, newpath, strerror(errno));
+							if (!g.quiet) fprintf(stdout, " not linked");
+						} else if (!g.quiet) fprintf(stdout, " linked");
 					} else {
 						filecopy( g.hashfn, newpath);
 						if (!g.quiet) fprintf(stdout, " copied");
@@ -717,10 +718,10 @@ static int sq3_callback( void *NotUsed, int argc, char **argv, char **azColName 
   Function Name	: manifest_sqlite3_decode
   Returns Type	: int
   ----Parameter List
-  1. struct globals *g , 
+  1. struct globals *g ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
@@ -759,11 +760,11 @@ int manifest_sqlite3_decode( struct globals *g ) {
   Function Name	: main
   Returns Type	: int
   ----Parameter List
-  1. int argc, 
-  2.  char **argv , 
+  1. int argc,
+  2.  char **argv ,
   ------------------
-  Exit Codes	: 
-  Side Effects	: 
+  Exit Codes	:
+  Side Effects	:
   --------------------------------------------------------------------
 Comments:
 
