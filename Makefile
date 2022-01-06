@@ -2,6 +2,8 @@ CFLAGS = -Wall -g
 OBJS = sha1.o
 LDLIBS = -lsqlite3
 
+.PHONY: all clean install
+
 all: ideviceunback
 
 ideviceunback: $(OBJS) ideviceunback.c
